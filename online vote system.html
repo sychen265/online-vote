@@ -18,13 +18,13 @@
     <h1 class="text-2xl font-bold mb-4 text-center text-gray-800">班代大會線上投票系統</h1>
     <div class="space-y-4">
       <div>
-        <label class="block text-sm font-medium mb-1">選擇班級</label>
+        <label class="block text-sm font-medium mb-1">選擇班級 / 身分</label>
         <select id="class-select" class="w-full border p-2.5 rounded-lg focus:ring-2 focus:ring-blue-500">
-          <option value="">-- 請選擇班級 --</option>
+          <option value="">-- 請選擇班級或身分 --</option>
         </select>
       </div>
       <div>
-        <label class="block text-sm font-medium mb-1">班代姓名</label>
+        <label class="block text-sm font-medium mb-1">姓名</label>
         <input type="text" id="user-name" placeholder="請輸入姓名" class="w-full border p-2.5 rounded-lg focus:ring-2 focus:ring-blue-500">
       </div>
       <button onclick="enterSystem()" class="w-full bg-blue-600 text-white py-2.5 rounded-lg font-semibold hover:bg-blue-700">進入投票大廳</button>
@@ -42,8 +42,8 @@
 
     <div id="active-proposal-area" class="space-y-4">
       <div class="p-4 bg-blue-50 rounded-lg border border-blue-100">
-        <span class="text-xs font-bold text-blue-600 block mb-1">當前提案</span>
-        <p id="proposal-title" class="text-lg font-bold text-gray-800">管理員尚未發布新提案...</p>
+        <span class="text-xs font-bold text-blue-600 block mb-1">當前進行中提案</span>
+        <p id="proposal-title" class="text-lg font-bold text-gray-800">管理員尚未發布提案...</p>
       </div>
 
       <div id="vote-options" class="hidden space-y-3">
@@ -59,7 +59,7 @@
       </div>
 
       <div id="voted-msg" class="hidden p-4 bg-green-50 text-green-700 text-center font-bold rounded-lg">
-        ✓ 您已完成本提案投票，請等待管理員發布下一個提案。
+        ✓ 您已完成本提案投票，請等待管理員開啟下一個提案。
       </div>
     </div>
   </div>
@@ -74,24 +74,32 @@
         <button onclick="logoutAdmin()" class="text-xs text-gray-400 hover:text-white underline">登出後台</button>
       </div>
 
-      <!-- 新增提案模組 -->
+      <!-- 發布新提案模組 -->
       <div class="bg-gray-800 p-3.5 rounded-lg border border-gray-700 space-y-2">
-        <label class="block text-xs text-gray-300 font-bold">1. 新增提案（新增後前一項提案與投票紀錄將自動刪除）</label>
+        <label class="block text-xs text-gray-300 font-bold">1. 發布新提案（舊提案與投票紀錄將自動歸檔存檔）</label>
         <input type="text" id="new-proposal-input" placeholder="請輸入新提案名稱..." class="w-full text-black p-2 rounded text-sm">
-        <button onclick="publishNewProposal()" class="w-full bg-yellow-500 hover:bg-yellow-600 text-gray-900 py-2 rounded font-bold transition">發布新提案並清空舊紀錄</button>
+        <button onclick="publishNewProposal()" class="w-full bg-yellow-500 hover:bg-yellow-600 text-gray-900 py-2 rounded font-bold transition">新增提案並開放投票</button>
+      </div>
+
+      <!-- 選擇與切換提案 -->
+      <div class="bg-gray-800 p-3.5 rounded-lg border border-gray-700 space-y-2">
+        <label class="block text-xs text-gray-300 font-bold">2. 檢視/切換後台監控提案</label>
+        <select id="proposal-history-select" onchange="switchAdminViewProposal(this.value)" class="w-full text-black p-2 rounded text-sm">
+          <option value="">-- 尚未發布任何提案 --</option>
+        </select>
       </div>
 
       <!-- 狀態開關與數據統計 -->
       <div class="bg-gray-800 p-3.5 rounded-lg border border-gray-700 space-y-3">
         <div class="flex justify-between items-center">
-          <label class="text-xs text-gray-300 font-bold">2. 投票控制與即時結果</label>
+          <label class="text-xs text-gray-300 font-bold">3. 選定提案控制與即時結果</label>
           <button onclick="toggleVotingStatus()" id="admin-toggle-btn" class="bg-red-500 hover:bg-red-600 px-3 py-1 rounded text-xs font-bold">關閉投票</button>
         </div>
 
         <div class="grid grid-cols-3 gap-2 text-center pt-1">
           <div class="bg-gray-700 p-2 rounded">
             <div class="text-gray-400 text-xs">總投票數</div>
-            <div id="stat-total" class="text-xl font-bold text-white">0 / 69</div>
+            <div id="stat-total" class="text-xl font-bold text-white">0</div>
           </div>
           <div class="bg-green-900/50 border border-green-700 p-2 rounded">
             <div class="text-green-400 text-xs">同意</div>
@@ -109,7 +117,7 @@
         </div>
 
         <div>
-          <div class="text-xs text-gray-400 mb-1">已投票班級明細：</div>
+          <div class="text-xs text-gray-400 mb-1">已投票明細：</div>
           <div id="voted-list" class="bg-gray-900 p-2 rounded text-xs text-gray-300 max-h-28 overflow-y-auto space-x-1">
             (尚無投票紀錄)
           </div>
@@ -134,8 +142,18 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
-    // 初始化 101~123, 201~223, 301~323 班級選項
+    // 初始化下拉選單選項
     const select = document.getElementById('class-select');
+    
+    // 1. 特殊身分選項
+    ['學生會', '老師'].forEach(specialOpt => {
+      const opt = document.createElement('option');
+      opt.value = specialOpt;
+      opt.textContent = `★ ${specialOpt}`;
+      select.appendChild(opt);
+    });
+
+    // 2. 101~123, 201~223, 301~323 班級選項
     [1, 2, 3].forEach(grade => {
       for (let i = 1; i <= 23; i++) {
         const classNum = `${grade}${i.toString().padStart(2, '0')}`;
@@ -148,66 +166,105 @@
 
     let currentUser = null;
     let isAdmin = false;
-    let currentProposalData = null;
+    let currentActiveProposalId = null;
+    let activeProposalData = null;
+    
+    let adminSelectedProposalId = null;
+    let adminProposalListener = null;
+    let adminVotesListener = null;
     let voteChart = null;
 
-    // 班代登入
+    // 判斷是否為無重複限制的特別身分
+    function isSpecialUser(cls) {
+      return cls === '學生會' || cls === '老師';
+    }
+
+    // 登入進入系統
     function enterSystem() {
       const cls = select.value;
       const name = document.getElementById('user-name').value.trim();
-      if (!cls || !name) return alert('請選擇班級並填寫姓名！');
+      if (!cls || !name) return alert('請選擇班級/身分並填寫姓名！');
       
       currentUser = { cls, name };
       document.getElementById('login-box').classList.add('hidden');
       document.getElementById('vote-box').classList.remove('hidden');
       document.getElementById('user-info').innerText = `${cls} - ${name}`;
       
-      listenToProposal();
+      listenToActiveProposal();
     }
 
-    // 即時監聽提案狀態與投票紀錄
-    function listenToProposal() {
-      db.ref('currentProposal').on('value', (snapshot) => {
-        currentProposalData = snapshot.val();
-        const titleEl = document.getElementById('proposal-title');
-        const badgeEl = document.getElementById('status-badge');
-        const voteOptions = document.getElementById('vote-options');
-
-        if (!currentProposalData || !currentProposalData.title) {
-          titleEl.innerText = "目前尚無進行中的提案";
-          badgeEl.innerText = "未開始";
-          badgeEl.className = "bg-gray-200 text-gray-700 text-xs px-3 py-1 rounded-full font-medium";
-          voteOptions.classList.add('hidden');
+    // 監聽當前進行中的提案 ID
+    function listenToActiveProposal() {
+      db.ref('activeProposalId').on('value', (snap) => {
+        currentActiveProposalId = snap.val();
+        
+        if (!currentActiveProposalId) {
+          updateStudentUI(null);
           return;
         }
 
-        titleEl.innerText = currentProposalData.title;
-
-        if (currentProposalData.isOpen) {
-          badgeEl.innerText = "投票進行中";
-          badgeEl.className = "bg-green-100 text-green-800 text-xs px-3 py-1 rounded-full font-medium";
-          checkUserVotedStatus();
-        } else {
-          badgeEl.innerText = "投票已結束";
-          badgeEl.className = "bg-red-100 text-red-800 text-xs px-3 py-1 rounded-full font-medium";
-          voteOptions.classList.add('hidden');
-        }
+        db.ref(`proposals/${currentActiveProposalId}`).on('value', (pSnap) => {
+          activeProposalData = pSnap.val();
+          updateStudentUI(activeProposalData);
+        });
       });
     }
 
-    // 檢查該班級是否已對目前提案投過票
+    // 更新使用者介面
+    function updateStudentUI(pData) {
+      const titleEl = document.getElementById('proposal-title');
+      const badgeEl = document.getElementById('status-badge');
+      const voteOptions = document.getElementById('vote-options');
+      const votedMsg = document.getElementById('voted-msg');
+
+      if (!pData || !pData.title) {
+        titleEl.innerText = "目前尚無進行中的提案";
+        badgeEl.innerText = "未開始";
+        badgeEl.className = "bg-gray-200 text-gray-700 text-xs px-3 py-1 rounded-full font-medium";
+        voteOptions.classList.add('hidden');
+        votedMsg.classList.add('hidden');
+        return;
+      }
+
+      titleEl.innerText = pData.title;
+
+      if (pData.isOpen) {
+        badgeEl.innerText = "投票進行中";
+        badgeEl.className = "bg-green-100 text-green-800 text-xs px-3 py-1 rounded-full font-medium";
+        checkUserVotedStatus();
+      } else {
+        badgeEl.innerText = "投票已結束";
+        badgeEl.className = "bg-red-100 text-red-800 text-xs px-3 py-1 rounded-full font-medium";
+        voteOptions.classList.add('hidden');
+        votedMsg.classList.add('hidden');
+      }
+    }
+
+    // 檢查投票重複狀態
     function checkUserVotedStatus() {
-      if (!currentUser) return;
-      db.ref(`votes/${currentUser.cls}`).once('value', (snapshot) => {
+      if (!currentUser || !currentActiveProposalId) return;
+
+      const voteOptions = document.getElementById('vote-options');
+      const votedMsg = document.getElementById('voted-msg');
+
+      // 若為「學生會」或「老師」，無重複限制，直接開放投票
+      if (isSpecialUser(currentUser.cls)) {
+        if (activeProposalData && activeProposalData.isOpen) {
+          voteOptions.classList.remove('hidden');
+        }
+        votedMsg.classList.add('hidden');
+        return;
+      }
+
+      // 一般班級：進行單一班級重複檢查
+      db.ref(`votes/${currentActiveProposalId}/${currentUser.cls}`).once('value', (snapshot) => {
         const hasVoted = snapshot.exists();
-        const voteOptions = document.getElementById('vote-options');
-        const votedMsg = document.getElementById('voted-msg');
 
         if (hasVoted) {
           voteOptions.classList.add('hidden');
           votedMsg.classList.remove('hidden');
         } else {
-          if (currentProposalData && currentProposalData.isOpen) {
+          if (activeProposalData && activeProposalData.isOpen) {
             voteOptions.classList.remove('hidden');
           }
           votedMsg.classList.add('hidden');
@@ -219,14 +276,30 @@
     function submitVote() {
       const selected = document.querySelector('input[name="vote_choice"]:checked');
       if (!selected) return alert('請選擇「同意」或「不同意」！');
+      if (!currentActiveProposalId) return alert('目前沒有可投票的提案！');
 
-      db.ref(`votes/${currentUser.cls}`).set({
+      // 決定資料庫寫入路徑
+      let voteRef;
+      if (isSpecialUser(currentUser.cls)) {
+        // 特別身分：使用 push() 產生獨立 key，允許多次/多人獨立寫入
+        voteRef = db.ref(`votes/${currentActiveProposalId}`).push();
+      } else {
+        // 一般班級：以班級名稱為 key，確保一班一票
+        voteRef = db.ref(`votes/${currentActiveProposalId}/${currentUser.cls}`);
+      }
+
+      voteRef.set({
+        cls: currentUser.cls,
         name: currentUser.name,
         choice: selected.value,
         timestamp: Date.now()
       }, (err) => {
         if (!err) {
           alert('投票成功送出！');
+          // 重設單選按鈕選擇
+          const checkedRadio = document.querySelector('input[name="vote_choice"]:checked');
+          if (checkedRadio) checkedRadio.checked = false;
+
           checkUserVotedStatus();
         } else {
           alert('送出失敗：' + err.message);
@@ -247,7 +320,7 @@
             isAdmin = true;
             panel.classList.remove('hidden');
             initChart();
-            startAdminRealtimeMonitor();
+            loadAdminProposalsHistory();
           } else if (pwd !== null) {
             alert('密碼錯誤！');
           }
@@ -264,35 +337,124 @@
       document.getElementById('admin-panel').classList.add('hidden');
     }
 
-    // 發布新提案並清空舊紀錄
+    // 發布新提案
     function publishNewProposal() {
       const input = document.getElementById('new-proposal-input');
       const title = input.value.trim();
       if (!title) return alert('請輸入提案名稱！');
 
-      if (!confirm('確定要發布新提案嗎？這將會完全清除舊提案與過往的投票統計！')) return;
+      if (!confirm('確定要發布新提案嗎？發布後全體參與者將切換至此新提案投票。')) return;
 
-      db.ref('votes').remove();
-      db.ref('currentProposal').set({
+      const newPropRef = db.ref('proposals').push();
+      const newPropId = newPropRef.key;
+
+      newPropRef.set({
         title: title,
         isOpen: true,
         createdAt: Date.now()
       }, (err) => {
         if (!err) {
-          alert('新提案已成功發布！');
+          db.ref('activeProposalId').set(newPropId);
+          alert('新提案已成功發布並開放投票！');
           input.value = '';
         }
       });
     }
 
-    // 切換投票狀態
-    function toggleVotingStatus() {
-      if (!currentProposalData) return alert('目前無進行中的提案');
-      const newStatus = !currentProposalData.isOpen;
-      db.ref('currentProposal/isOpen').set(newStatus);
+    // 載入提案歷史選單
+    function loadAdminProposalsHistory() {
+      db.ref('proposals').on('value', (snapshot) => {
+        const proposals = snapshot.val() || {};
+        const selectEl = document.getElementById('proposal-history-select');
+        selectEl.innerHTML = '';
+
+        const keys = Object.keys(proposals).reverse();
+
+        if (keys.length === 0) {
+          selectEl.innerHTML = '<option value="">-- 尚未發布任何提案 --</option>';
+          return;
+        }
+
+        keys.forEach(id => {
+          const opt = document.createElement('option');
+          opt.value = id;
+          opt.textContent = `${proposals[id].title} (${proposals[id].isOpen ? '投票中' : '已關閉'})`;
+          selectEl.appendChild(opt);
+        });
+
+        if (!adminSelectedProposalId || !proposals[adminSelectedProposalId]) {
+          switchAdminViewProposal(keys[0]);
+        }
+      });
     }
 
-    // 初始化 Chart.js 環狀圖
+    // 切換後台監控提案
+    function switchAdminViewProposal(propId) {
+      if (!propId) return;
+      adminSelectedProposalId = propId;
+      document.getElementById('proposal-history-select').value = propId;
+
+      if (adminProposalListener) adminProposalListener.off();
+      if (adminVotesListener) adminVotesListener.off();
+
+      adminProposalListener = db.ref(`proposals/${propId}`);
+      adminProposalListener.on('value', (snap) => {
+        const p = snap.val();
+        const btn = document.getElementById('admin-toggle-btn');
+        if (!p) return;
+
+        if (p.isOpen) {
+          btn.innerText = "關閉本提案投票";
+          btn.className = "bg-red-500 hover:bg-red-600 px-3 py-1 rounded text-xs font-bold";
+        } else {
+          btn.innerText = "重新開啟本提案投票";
+          btn.className = "bg-green-500 hover:bg-green-600 px-3 py-1 rounded text-xs font-bold";
+        }
+      });
+
+      adminVotesListener = db.ref(`votes/${propId}`);
+      adminVotesListener.on('value', (snapshot) => {
+        const votes = snapshot.val() || {};
+        let agreeCount = 0;
+        let disagreeCount = 0;
+        let votedClasses = [];
+
+        Object.keys(votes).forEach((key) => {
+          const v = votes[key];
+          const displayCls = v.cls || key;
+          votedClasses.push(`${displayCls}(${v.name})`);
+          if (v.choice === 'agree') agreeCount++;
+          if (v.choice === 'disagree') disagreeCount++;
+        });
+
+        const totalVotes = agreeCount + disagreeCount;
+
+        document.getElementById('stat-total').innerText = totalVotes;
+        document.getElementById('stat-agree').innerText = agreeCount;
+        document.getElementById('stat-disagree').innerText = disagreeCount;
+        
+        if (voteChart) {
+          voteChart.data.datasets[0].data = [agreeCount, disagreeCount];
+          voteChart.update();
+        }
+
+        const listEl = document.getElementById('voted-list');
+        listEl.innerHTML = votedClasses.length > 0 
+          ? votedClasses.map(c => `<span class="inline-block bg-gray-800 px-2 py-0.5 rounded m-0.5 border border-gray-700">${c}</span>`).join('')
+          : '(尚無投票紀錄)';
+      });
+    }
+
+    // 開啟/關閉投票狀態
+    function toggleVotingStatus() {
+      if (!adminSelectedProposalId) return alert('請先選擇提案');
+      db.ref(`proposals/${adminSelectedProposalId}/isOpen`).once('value', (snap) => {
+        const currentOpen = snap.val();
+        db.ref(`proposals/${adminSelectedProposalId}/isOpen`).set(!currentOpen);
+      });
+    }
+
+    // 初始化 Chart.js 圖表
     function initChart() {
       if (voteChart) return;
       const ctx = document.getElementById('voteChart').getContext('2d');
@@ -317,53 +479,6 @@
             }
           }
         }
-      });
-    }
-
-    // 即時數據監聽與圖表更新
-    function startAdminRealtimeMonitor() {
-      db.ref('currentProposal/isOpen').on('value', (snap) => {
-        const btn = document.getElementById('admin-toggle-btn');
-        const isOpen = snap.val();
-        if (isOpen) {
-          btn.innerText = "結束投票";
-          btn.className = "bg-red-500 hover:bg-red-600 px-3 py-1 rounded text-xs font-bold";
-        } else {
-          btn.innerText = "開啟投票";
-          btn.className = "bg-green-500 hover:bg-green-600 px-3 py-1 rounded text-xs font-bold";
-        }
-      });
-
-      db.ref('votes').on('value', (snapshot) => {
-        const votes = snapshot.val() || {};
-        let agreeCount = 0;
-        let disagreeCount = 0;
-        let votedClasses = [];
-
-        Object.keys(votes).forEach((cls) => {
-          votedClasses.push(`${cls}(${votes[cls].name})`);
-          if (votes[cls].choice === 'agree') agreeCount++;
-          if (votes[cls].choice === 'disagree') disagreeCount++;
-        });
-
-        const totalVotes = agreeCount + disagreeCount;
-
-        // 更新數字欄位
-        document.getElementById('stat-total').innerText = `${totalVotes} / 69`;
-        document.getElementById('stat-agree').innerText = agreeCount;
-        document.getElementById('stat-disagree').innerText = disagreeCount;
-        
-        // 更新圖表
-        if (voteChart) {
-          voteChart.data.datasets[0].data = [agreeCount, disagreeCount];
-          voteChart.update();
-        }
-
-        // 更新名單
-        const listEl = document.getElementById('voted-list');
-        listEl.innerHTML = votedClasses.length > 0 
-          ? votedClasses.map(c => `<span class="inline-block bg-gray-800 px-2 py-0.5 rounded m-0.5 border border-gray-700">${c}</span>`).join('')
-          : '(尚無投票紀錄)';
       });
     }
   </script>
