@@ -18,9 +18,9 @@
     <h1 class="text-2xl font-bold mb-4 text-center text-gray-800">班代大會線上投票系統</h1>
     <div class="space-y-4">
       <div>
-        <label class="block text-sm font-medium mb-1">選擇班級 / 身分</label>
+        <label class="block text-sm font-medium mb-1">選擇班級 / 身份</label>
         <select id="class-select" class="w-full border p-2.5 rounded-lg focus:ring-2 focus:ring-blue-500">
-          <option value="">-- 請選擇班級或身分 --</option>
+          <option value="">-- 請選擇班級或身份 --</option>
         </select>
       </div>
       <div>
@@ -38,10 +38,10 @@
       <div>
         <span id="user-info" class="font-bold text-gray-800 text-lg"></span>
       </div>
-      <button onclick="logoutUser()" class="text-xs text-red-500 hover:text-red-700 underline font-medium">登出身分</button>
+      <button onclick="logoutUser()" class="text-xs text-red-500 hover:text-red-700 underline font-medium">登出身份</button>
     </div>
 
-    <!-- 提案列表容器 (最新提案在上，舊提案在下) -->
+    <!-- 提案列表容器 -->
     <div id="proposals-container" class="space-y-4">
       <div class="bg-white p-8 rounded-xl shadow text-center text-gray-500">
         正在載入提案列表中...
@@ -49,10 +49,10 @@
     </div>
   </div>
 
-  <!-- 懸浮式送出投票按鈕列 (Requirement 4) -->
+  <!-- 懸浮式送出投票按鈕列 -->
   <div id="floating-submit-bar" class="hidden fixed bottom-4 left-1/2 transform -translate-x-1/2 w-11/12 max-w-xl bg-white/95 backdrop-blur-md border border-blue-200 p-3.5 rounded-2xl shadow-2xl flex items-center justify-between z-50">
     <div class="text-xs font-semibold text-gray-700">勾選選項後，點擊右側按鈕送出</div>
-    <button onclick="submitAllVotes()" class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold py-2.5 px-6 rounded-xl shadow-md transition transform active:scale-95">
+    <button id="floating-submit-btn" onclick="submitAllVotes()" class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold py-2.5 px-6 rounded-xl shadow-md transition transform active:scale-95 disabled:bg-gray-400">
       送出投票
     </button>
   </div>
@@ -117,7 +117,7 @@
         </div>
       </div>
 
-      <!-- 危險操作：刪除所有提案資料 (Requirement 1) -->
+      <!-- 危險操作：刪除所有提案資料 -->
       <div class="bg-red-950/60 p-3.5 rounded-lg border border-red-800 space-y-2">
         <label class="block text-xs text-red-300 font-bold">4. 危險操作區</label>
         <button onclick="deleteAllProposalsData()" class="w-full bg-red-600 hover:bg-red-700 text-white py-2.5 rounded font-bold transition">
@@ -130,14 +130,14 @@
 
   <script>
     // -------------------------------------------------------------
-    // Firebase 初始化 (請確保填入正確的金鑰)
+    // Firebase 初始化
     // -------------------------------------------------------------
     const firebaseConfig = {
       apiKey: "YOUR_API_KEY",
-      authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+      authDomain: "online-vote-system-59be9.firebaseapp.com",
       databaseURL: "https://online-vote-system-59be9-default-rtdb.firebaseio.com/",
-      projectId: "YOUR_PROJECT_ID",
-      storageBucket: "YOUR_PROJECT_ID.appspot.com",
+      projectId: "online-vote-system-59be9",
+      storageBucket: "online-vote-system-59be9.appspot.com",
       messagingSenderId: "YOUR_SENDER_ID",
       appId: "YOUR_APP_ID"
     };
@@ -147,7 +147,6 @@
     // 初始化下拉選單選項
     const select = document.getElementById('class-select');
     
-    // 特殊身分選項
     ['學生會', '老師'].forEach(specialOpt => {
       const opt = document.createElement('option');
       opt.value = specialOpt;
@@ -155,7 +154,6 @@
       select.appendChild(opt);
     });
 
-    // 101~123, 201~223, 301~323 班級選項
     [1, 2, 3].forEach(grade => {
       for (let i = 1; i <= 23; i++) {
         const classNum = `${grade}${i.toString().padStart(2, '0')}`;
@@ -176,37 +174,32 @@
     let adminVotesListener = null;
     let voteChart = null;
 
-    // 判斷是否為免受防重登限制的特別身分
     function isSpecialUser(cls) {
       return cls === '學生會' || cls === '老師';
     }
 
-    // 1. 登入進入系統 (含防重登系統, Requirement 2)
+    // 1. 登入進入系統
     function enterSystem() {
       const cls = select.value;
       const name = document.getElementById('user-name').value.trim();
-      if (!cls || !name) return alert('請選擇班級/身分並填寫姓名！');
+      if (!cls || !name) return alert('請選擇班級/身份並填寫姓名！');
 
-      // 若為特殊身分，直接登入
       if (isSpecialUser(cls)) {
         proceedLogin(cls, name);
         return;
       }
 
-      // 一般班級：進行防重登在線狀態檢查
       const onlineRef = db.ref(`onlineUsers/${cls}`);
       onlineRef.once('value').then((snap) => {
         if (snap.exists()) {
           const activeUser = snap.val();
           const now = Date.now();
-          // 若距上次活躍小於 2 分鐘，判定為登入中
           if (activeUser.lastActive && (now - activeUser.lastActive < 120000)) {
             alert(`【重複登入限制】\n「${cls}」目前已有代表 (${activeUser.name}) 在線上！\n一班同時僅限一人登入投票。`);
             return;
           }
         }
 
-        // 設定在線狀態並綁定斷線自動清除
         onlineRef.set({
           name: name,
           loginAt: Date.now(),
@@ -214,7 +207,6 @@
         });
         onlineRef.onDisconnect().remove();
 
-        // 心跳機制維持在線
         setInterval(() => {
           if (currentUser && currentUser.cls === cls) {
             db.ref(`onlineUsers/${cls}/lastActive`).set(Date.now());
@@ -245,7 +237,7 @@
       document.getElementById('floating-submit-bar').classList.add('hidden');
     }
 
-    // 2. 監聽提案與投票紀錄 (Requirement 3)
+    // 2. 監聽提案與投票紀錄
     function startListeningProposalsAndVotes() {
       db.ref('proposals').on('value', (pSnap) => {
         proposalsData = pSnap.val() || {};
@@ -258,7 +250,25 @@
       });
     }
 
-    // 渲染投票大廳提案列表 (新提案在上，舊提案在下, 投完保留)
+    // 檢查某提案當前使用者是否已投票 (結合 LocalStorage 與 Firebase 紀錄)
+    function getUserVoteRecord(propId) {
+      if (!currentUser) return null;
+      
+      // 1. 先查本地 LocalStorage
+      const localKey = `voted_${currentUser.cls}_${propId}`;
+      const localVote = localStorage.getItem(localKey);
+      if (localVote) return localVote;
+
+      // 2. 再查 Firebase Realtime DB 快取
+      const propVotes = votesData[propId] || {};
+      if (!isSpecialUser(currentUser.cls) && propVotes[currentUser.cls]) {
+        return propVotes[currentUser.cls].choice;
+      }
+
+      return null;
+    }
+
+    // 渲染投票大廳提案列表
     function renderProposalsLobby() {
       const container = document.getElementById('proposals-container');
       if (!currentUser) return;
@@ -272,25 +282,17 @@
         return;
       }
 
-      // 按創建時間降序排列 (最新提案放在最上方)
       pKeys.sort((a, b) => (proposalsData[b].createdAt || 0) - (proposalsData[a].createdAt || 0));
 
       let htmlStr = '';
 
       pKeys.forEach((propId) => {
         const prop = proposalsData[propId];
-        const propVotes = votesData[propId] || {};
-
-        // 檢查當前班級/使用者是否已投票
-        let userVote = null;
-        if (!isSpecialUser(currentUser.cls)) {
-          userVote = propVotes[currentUser.cls] ? propVotes[currentUser.cls].choice : null;
-        }
-
+        const userVote = getUserVoteRecord(propId);
         const isOpen = prop.isOpen;
 
         htmlStr += `
-          <div class="bg-white p-5 rounded-xl shadow-md border border-gray-100 space-y-3">
+          <div class="bg-white p-5 rounded-xl shadow-md border border-gray-100 space-y-3" id="prop-card-${propId}">
             <div class="flex justify-between items-start border-b pb-2">
               <h3 class="text-lg font-bold text-gray-800 flex-1 pr-2">${prop.title}</h3>
               ${isOpen 
@@ -301,32 +303,39 @@
         `;
 
         if (!isOpen) {
-          // 提案已結束
           htmlStr += `
-            <div class="p-3 bg-gray-50 text-gray-600 text-sm rounded-lg">
+            <div class="p-3 bg-gray-50 text-gray-600 text-sm rounded-lg border">
               🔒 此提案投票已結束。
               ${userVote ? `<span class="block mt-1 font-semibold text-blue-600">您的投票紀錄：${userVote === 'agree' ? '同意' : '不同意'}</span>` : ''}
             </div>
           `;
         } else if (userVote) {
-          // 一般班級且已完成投票
+          // 【已投票狀態】完全隱藏 Radio 投票格，銷毀選擇權，直接鎖死顯示結果
           htmlStr += `
-            <div class="p-3 bg-green-50 text-green-700 text-sm font-bold rounded-lg flex justify-between items-center">
-              <span>✓ 您已完成本提案投票</span>
-              <span class="text-xs bg-green-200 px-2 py-0.5 rounded text-green-900">選擇：${userVote === 'agree' ? '同意' : '不同意'}</span>
+            <div class="p-4 bg-gray-50 border border-gray-200 rounded-lg shadow-inner space-y-2">
+              <div class="flex items-center justify-between">
+                <span class="flex items-center gap-1.5 text-gray-700 font-bold text-sm">
+                  <svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                  🔒 投票已鎖定（已完成送出）
+                </span>
+                <span class="text-xs ${userVote === 'agree' ? 'bg-green-100 text-green-800 border border-green-300' : 'bg-red-100 text-red-800 border border-red-300'} px-3 py-1 rounded-full font-extrabold">
+                  您的選擇：${userVote === 'agree' ? '同意' : '不同意'}
+                </span>
+              </div>
+              <p class="text-xs text-gray-400">系統已正式登記您（${currentUser.cls} - ${currentUser.name}）的表決結果，無法再次修改或重新投票。</p>
             </div>
           `;
         } else {
-          // 尚未投票且開放中 (或為學生會/老師)
+          // 【未投票狀態】開放投票格
           htmlStr += `
-            <div class="space-y-2 pt-1">
+            <div class="space-y-2 pt-1" id="vote-options-${propId}">
               <div class="grid grid-cols-2 gap-3">
-                <label class="flex items-center justify-between p-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition">
+                <label class="flex items-center justify-between p-3 border rounded-lg cursor-pointer hover:bg-blue-50/50 transition">
                   <span class="font-semibold text-green-600">同意 (Agree)</span>
                   <input type="radio" name="vote_choice_${propId}" value="agree" class="w-5 h-5 text-blue-600">
                 </label>
-                <label class="flex items-center justify-between p-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition">
-                  <span class="font-semibold text-red-600">不同意 (Disagree)</span>
+                <label class="flex items-center justify-between p-3 border rounded-lg cursor-pointer hover:bg-blue-50/50 transition">
+                  <span class="font-semibold text-red-600">不同意 (Against)</span>
                   <input type="radio" name="vote_choice_${propId}" value="disagree" class="w-5 h-5 text-blue-600">
                 </label>
               </div>
@@ -340,41 +349,74 @@
       container.innerHTML = htmlStr;
     }
 
-    // 3. 懸浮按鈕觸發批量送出投票 (Requirement 4)
-    function submitAllVotes() {
+    // 3. 送出投票
+    async function submitAllVotes() {
       if (!currentUser) return alert('請先登入！');
 
       const checkedInputs = document.querySelectorAll('input[type="radio"][name^="vote_choice_"]:checked');
       if (checkedInputs.length === 0) {
-        return alert('請先勾選至少一個進行中提案的投票選項（同意/不同意）！');
+        return alert('請先勾選至少一個提案的投票選項（同意/不同意）！');
       }
 
-      let promises = [];
+      const submitBtn = document.getElementById('floating-submit-btn');
+      submitBtn.disabled = true;
+      submitBtn.innerText = '鎖定中...';
 
-      checkedInputs.forEach((input) => {
+      let successCount = 0;
+
+      for (const input of checkedInputs) {
         const propId = input.name.replace('vote_choice_', '');
         const choice = input.value;
 
-        let voteRef;
-        if (isSpecialUser(currentUser.cls)) {
-          voteRef = db.ref(`votes/${propId}`).push();
-        } else {
-          voteRef = db.ref(`votes/${propId}/${currentUser.cls}`);
+        // 一、第一時間：立刻於本地儲存鎖定標記 (LocalStorage)
+        const localKey = `voted_${currentUser.cls}_${propId}`;
+        localStorage.setItem(localKey, choice);
+
+        // 二、第一時間：立即將前端 DOM 上該提案的投票格銷毀替換，防止二次點擊
+        const optContainer = document.getElementById(`vote-options-${propId}`);
+        if (optContainer) {
+          optContainer.innerHTML = `
+            <div class="p-4 bg-gray-50 border border-gray-200 rounded-lg shadow-inner flex items-center justify-between">
+              <span class="flex items-center gap-1.5 text-gray-700 font-bold text-sm">
+                🔒 投票已鎖定
+              </span>
+              <span class="text-xs ${choice === 'agree' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'} px-3 py-1 rounded-full font-bold">
+                您的選擇：${choice === 'agree' ? '同意' : '不同意'}
+              </span>
+            </div>
+          `;
         }
 
-        promises.push(voteRef.set({
-          cls: currentUser.cls,
-          name: currentUser.name,
-          choice: choice,
-          timestamp: Date.now()
-        }));
-      });
+        // 三、後續異步同步至 Firebase 資料庫
+        try {
+          if (!isSpecialUser(currentUser.cls)) {
+            await db.ref(`votes/${propId}/${currentUser.cls}`).set({
+              cls: currentUser.cls,
+              name: currentUser.name,
+              choice: choice,
+              timestamp: Date.now()
+            });
+          } else {
+            await db.ref(`votes/${propId}`).push({
+              cls: currentUser.cls,
+              name: currentUser.name,
+              choice: choice,
+              timestamp: Date.now()
+            });
+          }
+          successCount++;
+        } catch (err) {
+          console.error("Firebase Sync Error:", err);
+        }
+      }
 
-      Promise.all(promises).then(() => {
-        alert('投票成功送出！');
-      }).catch((err) => {
-        alert('送出失敗：' + err.message);
-      });
+      // 重新繪製大廳確定選單已徹底鎖死
+      renderProposalsLobby();
+
+      submitBtn.disabled = false;
+      submitBtn.innerText = '送出投票';
+
+      alert(`投票已正式送出並鎖定！`);
     }
 
     // -------------------------------------------------------------
@@ -407,7 +449,6 @@
       document.getElementById('admin-panel').classList.add('hidden');
     }
 
-    // 發布新提案
     function publishNewProposal() {
       const input = document.getElementById('new-proposal-input');
       const title = input.value.trim();
@@ -431,7 +472,6 @@
       });
     }
 
-    // 載入提案歷史選單
     function loadAdminProposalsHistory() {
       db.ref('proposals').on('value', (snapshot) => {
         const proposals = snapshot.val() || {};
@@ -458,7 +498,6 @@
       });
     }
 
-    // 切換後台監控提案
     function switchAdminViewProposal(propId) {
       if (!propId) return;
       adminSelectedProposalId = propId;
@@ -515,7 +554,6 @@
       });
     }
 
-    // 開啟/關閉投票狀態
     function toggleVotingStatus() {
       if (!adminSelectedProposalId) return alert('請先選擇提案');
       db.ref(`proposals/${adminSelectedProposalId}/isOpen`).once('value', (snap) => {
@@ -524,13 +562,10 @@
       });
     }
 
-    // 4. 刪除所有提案資料 (雙重確認) (Requirement 1)
     function deleteAllProposalsData() {
-      // 第一重確認
       const confirm1 = confirm("【警告：高風險操作】\n此動作將會「永久刪除」資料庫中所有的提案記錄與投票結果！\n確定要繼續進行清空嗎？");
       if (!confirm1) return;
 
-      // 第二重確認
       const confirm2 = prompt("【第二重確認】\n請在下方輸入「刪除資料」四個字以執行刪除：");
       if (confirm2 === "刪除資料") {
         Promise.all([
@@ -538,6 +573,7 @@
           db.ref('votes').remove(),
           db.ref('activeProposalId').remove()
         ]).then(() => {
+          localStorage.clear();
           alert("所有提案與投票數據已成功清空！");
           adminSelectedProposalId = null;
           document.getElementById('proposal-history-select').innerHTML = '<option value="">-- 尚未發布任何提案 --</option>';
@@ -557,7 +593,6 @@
       }
     }
 
-    // 初始化 Chart.js 圖表
     function initChart() {
       if (voteChart) return;
       const ctx = document.getElementById('voteChart').getContext('2d');
